@@ -30,7 +30,7 @@
   },
   "optionalDependencies": {
     "@aws-sdk/client-kms": "^3.0.0",
-    "@aws-sdk/credential-providers": "^3.0.0"
+    "@aws-sdk/credential-providers": "^3.1116.0"
   },
   "engines": {
     "node": ">=22"
