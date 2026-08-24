@@ -1,0 +1,89 @@
+name: ci
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one bad version shouldn't mask the others
+      matrix:
+        # Every Node line still supported upstream: 22 and 24 are LTS, 26 is the
+        # current release (odd majors are short-lived and skipped). The lowest entry
+        # must match the engines floor in package.json.
+        node-version: ['22', '24', '26']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm test
+
+  # The AWS SDK is an optional dependency, so many users run without it. Refusing
+  # to encrypt for a server-managed org must still work with the SDK absent, which
+  # requires the KMS import to stay lazy. This job pins that.
+  #
+  # The SDK is removed explicitly rather than via `npm ci --omit=optional`: npm 10
+  # (bundled with Node 22) installs optional deps regardless of that flag, so the job
+  # would quietly test nothing. Deleting the directory is deterministic on any npm.
+  no-optional-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: rm -rf node_modules/@aws-sdk
+      - name: The AWS SDK must genuinely be absent
+        run: |
+          if [ -d node_modules/@aws-sdk ]; then
+            echo "::error::@aws-sdk present — this job is not testing what it claims"
+            exit 1
+          fi
+      - run: npm test
+
+  # Same packing the release does, minus the publish — so a broken tarball
+  # surfaces on push rather than on the tag we can't take back.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm pack --dry-run
+
+      # npm-shrinkwrap.json is what pins the dependency tree for `npx` users —
+      # package-lock.json would not, since npm never publishes it and ignores a
+      # dependency's lockfile even when present. But the shrinkwrap only ships if
+      # it is named in `files`: a restrictive `files` array drops it from the
+      # tarball silently, publishing a package that floats while the repo looks
+      # pinned. Same fail-open shape as the crypto tables, so it gets the same
+      # kind of canary.
+      - name: The shrinkwrap must actually be in the tarball
+        run: |
+          npm pack --dry-run --json > /tmp/pack.json
+          if ! node -e "
+            const [{ files }] = require('/tmp/pack.json');
+            process.exit(files.some((f) => f.path === 'npm-shrinkwrap.json') ? 0 : 1);
+          "; then
+            echo "::error::npm-shrinkwrap.json is missing from the tarball — npx users would resolve dependencies fresh. Add it to \"files\" in package.json."
+            exit 1
+          fi

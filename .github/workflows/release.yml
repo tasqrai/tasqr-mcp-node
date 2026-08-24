@@ -1,0 +1,80 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one bad version shouldn't mask the others
+      matrix:
+        # Every Node line still supported upstream: 22 and 24 are LTS, 26 is the
+        # current release (odd majors are short-lived and skipped). The lowest entry
+        # must match the engines floor in package.json.
+        node-version: ['22', '24', '26']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm test
+
+  # PUBLISHING IS MANUAL, ON PURPOSE (2026-08-13).
+  #
+  # A `v*` tag is how .mcp.json's proxy pin is moved (llm_task_tracker eadc1eb),
+  # so tagging is a routine act — but this workflow publishes to npm, which is a
+  # LAUNCH step, and npm versions are immutable. Those two must not be the same
+  # gesture. On 2026-08-12 they were: a pin tag started this job, its test matrix
+  # went green, and it was cancelled by hand seconds before `npm publish` ran.
+  #
+  # So a tag push still runs the tests below (useful validation of a release
+  # candidate) and stops there. Publishing needs an explicit
+  # Actions -> release -> "Run workflow".
+  #
+  # GitHub's own gate for this is a required reviewer on the `npm` environment,
+  # which is unavailable here: protection rules need a paid plan for private
+  # repos, and the tasqrai org is free. This is the equivalent control, and it is
+  # better in one respect — it lives in git, so it is reviewable and greppable
+  # rather than sitting invisibly in repo settings.
+  #
+  # RUN IT FROM THE TAG, not from main: the version check below reads
+  # GITHUB_REF_NAME, so dispatching from a branch fails closed.
+  publish:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write # mint the OIDC token npm trades for a publish grant
+    steps:
+      - uses: actions/checkout@v7
+
+      # npm trusted publishing needs a newer toolchain than the engines floor:
+      # npm >=11.5.1 on Node >=22.14. This constrains the publishing runner
+      # only, not what consumers may run.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install -g npm@latest
+
+      # A tag that disagrees with package.json would publish a version nobody
+      # asked for, and npm versions are immutable — so fail before publishing.
+      - name: Tag must match package version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(node -p 'require("./package.json").version')"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::ref '${GITHUB_REF_NAME}' does not name package.json version ${version}."
+            echo "::error::Run this workflow FROM THE TAG (v${version}), not from a branch."
+            exit 1
+          fi
+
+      - run: npm ci
+      # No NODE_AUTH_TOKEN: OIDC supplies the credential, and provenance
+      # attestation is automatic under trusted publishing.
+      - run: npm publish

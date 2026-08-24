@@ -1,0 +1,51 @@
+{
+  "name": "tasqr-mcp",
+  "version": "0.1.0",
+  "description": "Tasqr MCP server — task state management for AI agents",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "tasks",
+    "agents",
+    "tasqr"
+  ],
+  "author": "Tasqr <hello@tasqr.ai>",
+  "type": "module",
+  "bin": {
+    "tasqr-mcp": "bin/tasqr-mcp.js"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "npm-shrinkwrap.json"
+  ],
+  "scripts": {
+    "test": "node --test --experimental-test-module-mocks",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "~1.30.0"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-kms": "^3.0.0",
+    "@aws-sdk/credential-providers": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT",
+  "homepage": "https://tasqr.ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tasqrai/tasqr-mcp-node.git"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.7.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.7.0",
+    "prettier": "^3.9.5"
+  }
+}
