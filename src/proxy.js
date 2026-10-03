@@ -33,12 +33,34 @@ export async function runProxy(apiKey) {
 
   await upstream.connect(transport);
 
-  const { tools } = await upstream.listTools();
+  const tools = await listAllTools(upstream);
 
   const server = buildServer(upstream, tools, crypto);
 
   const stdio = new StdioServerTransport();
   await server.connect(stdio);
+}
+
+// Every page of the upstream tool list, fetched once at startup. The list is held
+// for the life of the process on purpose — the server is stateless and cannot send
+// tools/list_changed, and a list that holds still keeps the customer's tool-schema
+// prompt prefix cacheable. Reading only the first page would silently drop every
+// tool past it the day the server paginates. A repeated cursor would loop forever,
+// so it is an error rather than a hang.
+export async function listAllTools(upstream) {
+  const tools = [];
+  const seen = new Set();
+  let cursor;
+  do {
+    const page = await upstream.listTools(cursor === undefined ? undefined : { cursor });
+    tools.push(...page.tools);
+    cursor = page.nextCursor;
+    if (cursor !== undefined) {
+      if (seen.has(cursor)) throw new Error(`tools/list repeated cursor ${JSON.stringify(cursor)}`);
+      seen.add(cursor);
+    }
+  } while (cursor !== undefined);
+  return tools;
 }
 
 // The local stdio server, advertising what the upstream server advertises. Its
