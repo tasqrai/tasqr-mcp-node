@@ -35,9 +35,23 @@ export async function runProxy(apiKey) {
 
   const { tools } = await upstream.listTools();
 
+  const server = buildServer(upstream, tools, crypto);
+
+  const stdio = new StdioServerTransport();
+  await server.connect(stdio);
+}
+
+// The local stdio server, advertising what the upstream server advertises. Its
+// `instructions` are relayed, not set here: with tool search on, a client sees
+// only tool names and these instructions at session start, so they decide whether
+// a model goes looking for the tools. Relaying keeps the server the one place that
+// text is written — editing it ships with a server deploy, not a client release.
+// Upstream sending none means we advertise none (the option is left out entirely).
+export function buildServer(upstream, tools, crypto) {
+  const instructions = upstream.getInstructions();
   const server = new Server(
     { name: 'tasqr-mcp', version: VERSION },
-    { capabilities: { tools: {} } },
+    { capabilities: { tools: {} }, ...(instructions !== undefined && { instructions }) },
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
@@ -52,6 +66,5 @@ export async function runProxy(apiKey) {
     return result;
   });
 
-  const stdio = new StdioServerTransport();
-  await server.connect(stdio);
+  return server;
 }
