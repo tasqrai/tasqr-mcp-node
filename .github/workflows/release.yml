@@ -60,7 +60,10 @@ jobs:
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-      - run: npm install -g npm@latest
+      # Pinned to 11, not latest: npm 12 dropped npm-shrinkwrap.json from `npm ci`
+      # (EUSAGE, no package-lock.json), which failed the 0.1.1 publish. 11 is the
+      # newest line that both reads the shrinkwrap and meets the >=11.5.1 floor.
+      - run: npm install -g npm@11
 
       # A tag that disagrees with package.json would publish a version nobody
       # asked for, and npm versions are immutable — so fail before publishing.
