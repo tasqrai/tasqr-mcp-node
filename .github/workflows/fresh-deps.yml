@@ -1,0 +1,36 @@
+name: fresh-deps
+
+# Tests the dependency tree a user would get today, not the one we pinned.
+#
+# npm 12 no longer installs from npm-shrinkwrap.json (measured 2026-10-03: `npx
+# tasqr-mcp@0.1.1` under npm 12 resolved 37 of 119 packages to versions other than
+# the shrinkwrap's), so users on it run whatever is newest inside our ranges. Every
+# other job here installs from the shrinkwrap and cannot see that tree. This one
+# deletes it and installs fresh, so a dependency release that breaks us turns this
+# red before a user's launch is the first report.
+#
+# Scheduled rather than on push: the code under test doesn't change between runs,
+# the registry does.
+
+on:
+  schedule:
+    - cron: '23 7 * * *' # daily
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one bad version shouldn't mask the others
+      matrix:
+        node-version: ['22', '24', '26'] # keep in step with ci.yml
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: rm npm-shrinkwrap.json
+      - run: npm install --no-audit --no-fund
+      - name: Record what resolved
+        run: npm ls --omit=dev --depth=0
+      - run: npm test
