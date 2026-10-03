@@ -1,6 +1,6 @@
 {
   "name": "tasqr-mcp",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Tasqr MCP server — task state management for AI agents",
   "keywords": [
     "mcp",
