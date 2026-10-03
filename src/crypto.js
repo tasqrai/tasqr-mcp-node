@@ -167,6 +167,15 @@ export class ClientCrypto {
     args[listKey] = items.map((item, i) => {
       if (item == null || typeof item !== 'object' || Array.isArray(item)) return item;
       item = { ...item };
+      // The server rejects a non-object metadata/output, but it only ever sees our
+      // ciphertext marker (always an object), so for a BYOK org the check has to
+      // happen here or a string is silently accepted.
+      for (const field of ['metadata', 'output']) {
+        const value = fields.includes(field) ? item[field] : undefined;
+        if (value != null && (typeof value !== 'object' || Array.isArray(value))) {
+          throw new ClientCryptoError(`${listKey}[${i}]: '${field}' must be an object`);
+        }
+      }
       if (toolName === 'create_tasks' && !item.task_id) {
         item.task_id = randomUUID();
       }

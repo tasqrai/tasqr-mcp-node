@@ -143,6 +143,28 @@ describe('crypto correctness', () => {
     );
   });
 
+  // The server rejects a non-object metadata/output for managed orgs, but for a BYOK
+  // org it only sees the ciphertext marker (an object), so a string would be accepted
+  // and stored. The proxy enforces the same rule, with the server's wording.
+  for (const [tool, listKey, item] of [
+    ['update_tasks', 'updates', { task_id: TID, output: 'a string' }],
+    ['update_tasks', 'updates', { task_id: TID, metadata: ['not', 'an', 'object'] }],
+    ['create_tasks', 'tasks', { title: 't', description: 'd', metadata: 'a string' }],
+  ]) {
+    const field = 'output' in item ? 'output' : 'metadata';
+    test(`${tool} with a non-object ${field} throws`, async () => {
+      process.env.TASQR_LOG = join(tmpdir(), `test-non-object-${Date.now()}.log`);
+      const { ClientCryptoError } = await import('../src/crypto.js');
+      const c = await makeCrypto();
+      assert.throws(
+        () => c.encryptArgs(tool, { [listKey]: [item] }),
+        (e) =>
+          e instanceof ClientCryptoError &&
+          e.message === `${listKey}[0]: '${field}' must be an object`,
+      );
+    });
+  }
+
   test('passthrough fields unchanged', async () => {
     process.env.TASQR_LOG = join(tmpdir(), `test-passthrough-${Date.now()}.log`);
     const c = await makeCrypto();

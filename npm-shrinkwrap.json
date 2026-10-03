@@ -1,12 +1,12 @@
 {
   "name": "tasqr-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
       "name": "tasqr-mcp",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "license": "MIT",
       "dependencies": {
         "@aws-sdk/client-kms": "3.1136.0",
